@@ -71,7 +71,7 @@ export function generateTemplate() {
   saveAs(new Blob([wbout], { type: 'application/octet-stream' }), 'SSR_Rate_Data_Template.xlsx');
 }
 
-export function exportResults(results, tierWeights, items) {
+export function exportResults(results, tierWeights, items, fileName = 'SSR_Calculation_Results.xlsx') {
   const wb = XLSX.utils.book_new();
 
   // Sheet 1: SSR Summary
@@ -116,6 +116,7 @@ export function exportResults(results, tierWeights, items) {
       'Rate (INR)': s.rate,
       'Year': s.year,
       'Remarks': s.remarks,
+      'Excluded': s.excluded ? 'Yes' : 'No',
     }))
   );
   const ws3 = XLSX.utils.json_to_sheet(sourceData);
@@ -138,5 +139,48 @@ export function exportResults(results, tierWeights, items) {
   XLSX.utils.book_append_sheet(wb, ws4, 'Methodology Note');
 
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-  saveAs(new Blob([wbout], { type: 'application/octet-stream' }), 'SSR_Calculation_Results.xlsx');
+  saveAs(new Blob([wbout], { type: 'application/octet-stream' }), fileName);
+}
+
+export function exportManualEntryResults({
+  itemName,
+  matchedItem,
+  sources,
+  validSources,
+  tierWeights,
+  analysis,
+}) {
+  if (!analysis) return;
+
+  const safeName = (itemName || matchedItem?.name || 'Manual Entry').trim();
+  const exportResultsData = [{
+    code: matchedItem?.code || 'MANUAL',
+    name: safeName,
+    category: matchedItem?.category || '',
+    finalValue: analysis.tiered.finalValue,
+    selectedMethod: 'Tiered Weighted Blend',
+    previousSSR: matchedItem?.previousSSR || null,
+    allMethods: analysis.allMethods,
+    cv: analysis.cv,
+    totalSources: validSources.length,
+  }];
+
+  const exportItems = [{
+    code: matchedItem?.code || 'MANUAL',
+    name: safeName,
+    sources: sources.map((source) => {
+      const parsedRate = parseFloat(String(source.rate).replace(/,/g, ''));
+      return {
+        ...source,
+        rate: Number.isFinite(parsedRate) ? parsedRate : source.rate,
+      };
+    }),
+  }];
+
+  const fileNameBase = safeName
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '')
+    .replace(/\s+/g, '_')
+    .slice(0, 60) || 'Manual_Entry';
+
+  exportResults(exportResultsData, tierWeights, exportItems, `${fileNameBase}_SSR_Results.xlsx`);
 }
