@@ -4,6 +4,8 @@ import { computeAllMethods, ALL_METHODS, cv } from '../../engine/statistics';
 import { formatINR, formatPercent, getMethodColor } from '../../utils/formatters';
 import { SSR_ITEMS } from '../../data/ssrItems';
 import { SAMPLE_DATA } from '../../data/sampleData';
+import { exportManualEntryResults } from '../../utils/excelExporter';
+import { exportManualEntryPdf } from '../../utils/pdfExporter';
 import TierBadge from '../Shared/TierBadge';
 
 const EMPTY_SOURCE = { sourceName: '', sourceType: 'State Utility SSR', rate: '', year: '', remarks: '', excluded: false };
@@ -160,6 +162,20 @@ export default function ManualTab() {
   const isSourceComplete = (s) => {
     const num = parseFloat(String(s.rate).replace(/,/g, ''));
     return !isNaN(num) && num > 0 && s.sourceType;
+  };
+
+  const handleExcelExport = () => {
+    if (!analysis) return;
+    exportManualEntryResults({ itemName, matchedItem, sources, validSources, tierWeights, analysis });
+  };
+
+  const handlePdfExport = () => {
+    if (!analysis) return;
+    try {
+      exportManualEntryPdf({ itemName, matchedItem, sources, validSources, tierWeights, analysis });
+    } catch (err) {
+      window.alert(err.message);
+    }
   };
 
   return (
@@ -446,9 +462,23 @@ export default function ManualTab() {
           <>
             {/* Results summary */}
             <div className="card">
-              <div className="flex items-start justify-between gap-3 mb-3">
-                <div>
-                  <h3 className="text-sm font-semibold">Tiered Weighted Result</h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold">Tiered Weighted Result</h3>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handlePdfExport}
+                    className="btn-secondary text-xs"
+                    title="Export formatted PDF report"
+                  >
+                    ↓ PDF
+                  </button>
+                  <button
+                    onClick={handleExcelExport}
+                    className="btn-primary text-xs"
+                    title="Export structured Excel report"
+                  >
+                    ↓ Excel
+                  </button>
                 </div>
               </div>
               <p className="text-3xl font-bold text-[#00529B]">{formatINR(analysis.tiered.finalValue)}</p>

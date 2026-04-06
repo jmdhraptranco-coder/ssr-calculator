@@ -71,7 +71,7 @@ export function generateTemplate() {
   saveAs(new Blob([wbout], { type: 'application/octet-stream' }), 'SSR_Rate_Data_Template.xlsx');
 }
 
-export function exportResults(results, tierWeights, items, fileName = 'SSR_Calculation_Results.xlsx') {
+export function exportResults(results, tierWeights, items) {
   const wb = XLSX.utils.book_new();
 
   // Sheet 1: SSR Summary
@@ -116,7 +116,6 @@ export function exportResults(results, tierWeights, items, fileName = 'SSR_Calcu
       'Rate (INR)': s.rate,
       'Year': s.year,
       'Remarks': s.remarks,
-      'Excluded': s.excluded ? 'Yes' : 'No',
     }))
   );
   const ws3 = XLSX.utils.json_to_sheet(sourceData);
@@ -139,6 +138,135 @@ export function exportResults(results, tierWeights, items, fileName = 'SSR_Calcu
   XLSX.utils.book_append_sheet(wb, ws4, 'Methodology Note');
 
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-  saveAs(new Blob([wbout], { type: 'application/octet-stream' }), fileName);
+  saveAs(new Blob([wbout], { type: 'application/octet-stream' }), 'SSR_Calculation_Results.xlsx');
 }
 
+export function exportManualEntryResults({ itemName, matchedItem, sources, validSources, tierWeights, analysis }) {
+  if (!analysis) return;
+
+  const wb = XLSX.utils.book_new();
+  const title = itemName || matchedItem?.name || 'Manual Entry';
+  const generatedOn = new Date().toLocaleString('en-IN', { dateStyle: 'long', timeStyle: 'short' });
+
+  // ── Sheet 1: SSR Report (structured sections) ──────────────────────────────
+  const rows = [];
+
+  const blank = { A: '' };
+  const row = (...cells) => {
+    const keys = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+    return Object.fromEntries(cells.map((v, i) => [keys[i], v ?? '']));
+  };
+  const header = (label) => row(`── ${label} ──`);
+
+  // Title block
+  rows.push(row('APTRANSCO — SSR Manual Entry Report', '', '', '', '', '', 'FY 2026-27'));
+  rows.push(row('Schedule of Rates Analysis'));
+  rows.push(blank);
+  rows.push(row('Item Name', title));
+  rows.push(row('Item Code', matchedItem?.code || 'MANUAL'));
+  rows.push(row('Category', matchedItem?.category || '—'));
+  rows.push(row('Voltage Level', matchedItem?.voltageLevel || '—'));
+  rows.push(row('Generated On', generatedOn));
+  rows.push(blank);
+
+  // Final result
+  rows.push(header('RECOMMENDED SSR RATE'));
+  rows.push(row('Tiered Weighted SSR (Final)', Math.round(analysis.tiered.finalValue)));
+  if (matchedItem?.previousSSR?.value != null) {
+    const prev = matchedItem.previousSSR.value;
+    const pct = ((analysis.tiered.finalValue - prev) / prev) * 100;
+    rows.push(row(`Previous SSR (${matchedItem.previousSSR.year})`, Math.round(prev)));
+    rows.push(row('Change (%)', `${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`));
+  }
+  rows.push(blank);
+
+  // Summary stats
+  rows.push(header('SUMMARY STATISTICS'));
+  rows.push(row('Total Sources Entered', sources.length));
+  rows.push(row('Active Sources (used in calc)', validSources.length));
+  rows.push(row('Excluded Sources', sources.filter((s) => s.excluded).length));
+  rows.push(row('Tiers Represented', analysis.tiered.tierBreakdown.length));
+  const cvVal = analysis.cv;
+  const spreadLabel = cvVal <= 15 ? 'Low' : cvVal <= 40 ? 'Moderate' : cvVal <= 60 ? 'High' : 'Very High';
+  rows.push(row('Coefficient of Variation (CV%)', `${cvVal.toFixed(1)}%`));
+  rows.push(row('Data Spread Quality', spreadLabel));
+  rows.push(blank);
+
+  // Tier weights
+  rows.push(header('TIER WEIGHTS APPLIED'));
+  rows.push(row('Tier', 'Weight (%)'));
+  for (const [tier, weight] of Object.entries(tierWeights)) {
+    if (weight > 0) rows.push(row(tier, weight));
+  }
+  rows.push(blank);
+
+  // Tier contributions
+  rows.push(header('TIER CONTRIBUTIONS'));
+  rows.push(row('Tier', 'Sources', 'Weight (%)', 'Tier Estimate (INR)', 'Contribution (INR)'));
+  for (const tb of analysis.tiered.tierBreakdown) {
+    rows.push(row(
+      tb.tier,
+      tb.sources.length,
+      `${(tb.weight * 100).toFixed(0)}%`,
+      Math.round(tb.estimate),
+      Math.round(tb.contribution),
+    ));
+  }
+  const formulaParts = analysis.tiered.tierBreakdown
+    .map((tb) => `${(tb.weight * 100).toFixed(0)}% × ₹${Math.round(tb.estimate).toLocaleString('en-IN')}`)
+    .join(' + ');
+  rows.push(row('Formula', formulaParts));
+  rows.push(row('Final Value', Math.round(analysis.tiered.finalValue)));
+  rows.push(blank);
+
+  // Method comparison
+  rows.push(header('STATISTICAL METHOD COMPARISON'));
+  rows.push(row('Method', 'Value (INR)', 'Difference from Tiered Blend', 'Difference (%)'));
+  const finalVal = analysis.tiered.finalValue;
+  for (const [key, val] of Object.entries(analysis.allMethods)) {
+    if (val == null) continue;
+    const diff = val - finalVal;
+    const diffPct = (diff / finalVal) * 100;
+    rows.push(row(
+      key.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase()).trim(),
+      Math.round(val),
+      Math.round(diff),
+      `${diffPct > 0 ? '+' : ''}${diffPct.toFixed(1)}%`,
+    ));
+  }
+  rows.push(row('Tiered Weighted Blend (Recommended)', Math.round(finalVal), 0, '0.0%'));
+  rows.push(blank);
+
+  // Diagnostics
+  rows.push(header('DIAGNOSTICS'));
+  if (analysis.tiered.diagnostics.flags.length) {
+    for (const flag of analysis.tiered.diagnostics.flags) rows.push(row('⚠ ' + flag));
+  } else {
+    rows.push(row('✓ No diagnostic flags raised.'));
+  }
+  rows.push(blank);
+
+  // Source data
+  rows.push(header('SOURCE DATA'));
+  rows.push(row('#', 'Source Name', 'Source Type / Tier', 'Rate (INR)', 'Year', 'Status', 'Remarks'));
+  sources.forEach((s, i) => {
+    const rate = parseFloat(String(s.rate).replace(/,/g, ''));
+    rows.push(row(
+      i + 1,
+      s.sourceName || '—',
+      s.sourceType,
+      Number.isFinite(rate) ? Math.round(rate) : s.rate || '—',
+      s.year || '—',
+      s.excluded ? 'Excluded' : 'Included',
+      s.remarks || '',
+    ));
+  });
+
+  const ws = XLSX.utils.json_to_sheet(rows, { header: ['A', 'B', 'C', 'D', 'E', 'F', 'G'], skipHeader: true });
+  ws['!cols'] = [{ wch: 36 }, { wch: 30 }, { wch: 20 }, { wch: 20 }, { wch: 12 }, { wch: 12 }, { wch: 30 }];
+  XLSX.utils.book_append_sheet(wb, ws, 'SSR Report');
+
+  const fileBase = title.trim().replace(/[<>:"/\\|?*\x00-\x1F]/g, '').replace(/\s+/g, '_').slice(0, 55) || 'Manual_Entry';
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  saveAs(new Blob([wbout], { type: 'application/octet-stream' }), `${fileBase}_SSR_Report.xlsx`);
+}
