@@ -1,12 +1,8 @@
-# Disabled — deploy.yml handles build and deployment via GitHub Actions.
-# This file is kept to avoid accidental re-creation by GitHub UI defaults.
 name: Disabled
-
 on:
   workflow_dispatch:
-
 jobs:
   noop:
     runs-on: ubuntu-latest
     steps:
-      - run: echo "Use deploy.yml instead."
+      - run: echo "Disabled. See deploy.yml."
