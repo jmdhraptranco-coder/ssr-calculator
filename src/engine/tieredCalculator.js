@@ -79,6 +79,64 @@ export function autoWeights(sources) {
 // vs. MAD-filtered mean in statistics.js which uses 2.0 for tighter filtering
 export const OUTLIER_DETECTION_THRESHOLD = 2.5;
 
+const AUTO_CT_LA_PATTERNS = [
+  /\bct\b/i,
+  /\bcurrent\s+transformer\b/i,
+  /\bla\b/i,
+  /\blightning\s+arrester\b/i,
+  /\bsurge\s+arrester\b/i,
+  /\bmetal\s+oxide\s+arrester\b/i,
+  /\bmoa\b/i,
+];
+
+function normalizeText(value) {
+  return String(value || '').toLowerCase();
+}
+
+function isCtLaLikeItem(itemContext = {}) {
+  const haystack = [itemContext.code, itemContext.name, itemContext.category]
+    .map(normalizeText)
+    .join(' ');
+  return AUTO_CT_LA_PATTERNS.some((pattern) => pattern.test(haystack));
+}
+
+function resolveClosingMode(closingMode, itemContext = {}) {
+  if (closingMode && closingMode !== 'auto') return closingMode;
+  return isCtLaLikeItem(itemContext) ? 'dev2' : 'sumP2overP';
+}
+
+function closingByDev2(values) {
+  if (values.length === 0) return 0;
+  if (values.length === 1) return values[0];
+
+  const avg = values.reduce((a, b) => a + b, 0) / values.length;
+  const epsilon = 1e-12;
+  let weightedSum = 0;
+  let totalWeight = 0;
+
+  for (const value of values) {
+    const deviation = Math.abs(value - avg);
+    const weight = 1 / Math.max(deviation * deviation, epsilon);
+    weightedSum += value * weight;
+    totalWeight += weight;
+  }
+
+  return totalWeight > 0 ? weightedSum / totalWeight : avg;
+}
+
+function closingBySumP2overP(values) {
+  if (values.length === 0) return 0;
+  const denominator = values.reduce((a, b) => a + b, 0);
+  if (denominator === 0) return 0;
+  const numerator = values.reduce((acc, v) => acc + (v * v), 0);
+  return numerator / denominator;
+}
+
+function computeClosingValue(values, closingMode) {
+  if (closingMode === 'dev2') return closingByDev2(values);
+  return closingBySumP2overP(values);
+}
+
 function detectOutliers(values) {
   if (values.length < 3) return { clean: values, outliers: [] };
   const med = median(values);
@@ -106,7 +164,16 @@ function withinTierEstimate(values) {
   return { estimate: hodgesLehmann(values), method: 'Hodges-Lehmann' };
 }
 
-export function computeTieredSSR(sources, tierWeights) {
+export function computeTieredSSR(sources, tierWeights, options = {}) {
+  const {
+    closingMode = 'auto',
+    pvFactor: rawPvFactor = 1,
+    itemContext = {},
+  } = options;
+
+  const pvFactor = Number.isFinite(Number(rawPvFactor)) ? Number(rawPvFactor) : 1;
+  const closingModeApplied = resolveClosingMode(closingMode, itemContext);
+
   // Group by tier
   const byTier = {};
   for (const tier of TIER_ORDER) {
@@ -159,8 +226,15 @@ export function computeTieredSSR(sources, tierWeights) {
     }
   }
 
+  const baseValue = computeClosingValue(allValues, closingModeApplied);
+  const finalValueWithPv = baseValue * pvFactor;
+
   return {
-    finalValue,
+    finalValue: finalValueWithPv,
+    tieredValue: finalValue,
+    baseValue,
+    pvFactor,
+    closingModeApplied,
     tierBreakdown,
     allMethods,
     diagnostics: {

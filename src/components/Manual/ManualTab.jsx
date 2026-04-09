@@ -7,6 +7,7 @@ import { SAMPLE_DATA } from '../../data/sampleData';
 import { exportManualEntryResults } from '../../utils/excelExporter';
 import { exportManualEntryPdf } from '../../utils/pdfExporter';
 import TierBadge from '../Shared/TierBadge';
+import CalculationModeBar from '../Shared/CalculationModeBar';
 
 const EMPTY_SOURCE = { sourceName: '', sourceType: 'State Utility SSR', rate: '', year: '', remarks: '', excluded: false };
 const STORAGE_KEY = 'ssr-calculator-manual-entry';
@@ -37,6 +38,8 @@ export default function ManualTab() {
   const [matchedItem, setMatchedItem] = useState(null);
   const [showRemarks, setShowRemarks] = useState({});
   const [rateFocused, setRateFocused] = useState({});
+  const [pvValue, setPvValue] = useState('1');
+  const [closingMode, setClosingMode] = useState('auto');
 
   // D4: Auto-save on change (debounced)
   const saveTimer = useRef(null);
@@ -141,9 +144,17 @@ export default function ManualTab() {
     if (validSources.length < 2) return null;
     const values = validSources.map((s) => s.rate);
     const allMethods = computeAllMethods(values);
-    const tiered = computeTieredSSR(validSources, tierWeights);
+    const tiered = computeTieredSSR(validSources, tierWeights, {
+      pvFactor: pvValue,
+      closingMode,
+      itemContext: {
+        code: matchedItem?.code,
+        name: itemName,
+        category: matchedItem?.category,
+      },
+    });
     return { allMethods, tiered, cv: cv(values), values };
-  }, [validSources, tierWeights]);
+  }, [validSources, tierWeights, pvValue, closingMode, matchedItem, itemName]);
 
   const maxVal = analysis
     ? Math.max(...analysis.values, ...Object.values(analysis.allMethods).filter(Boolean), analysis.tiered.finalValue)
@@ -166,13 +177,37 @@ export default function ManualTab() {
 
   const handleExcelExport = () => {
     if (!analysis) return;
-    exportManualEntryResults({ itemName, matchedItem, sources, validSources, tierWeights, analysis });
+    exportManualEntryResults({
+      itemName,
+      matchedItem,
+      sources,
+      validSources,
+      tierWeights,
+      analysis,
+      calculationSettings: {
+        closingMode: analysis.tiered.closingModeApplied,
+        pvFactor: analysis.tiered.pvFactor,
+        baseValue: analysis.tiered.baseValue,
+      },
+    });
   };
 
   const handlePdfExport = () => {
     if (!analysis) return;
     try {
-      exportManualEntryPdf({ itemName, matchedItem, sources, validSources, tierWeights, analysis });
+      exportManualEntryPdf({
+        itemName,
+        matchedItem,
+        sources,
+        validSources,
+        tierWeights,
+        analysis,
+        calculationSettings: {
+          closingMode: analysis.tiered.closingModeApplied,
+          pvFactor: analysis.tiered.pvFactor,
+          baseValue: analysis.tiered.baseValue,
+        },
+      });
     } catch (err) {
       window.alert(err.message);
     }
@@ -419,6 +454,13 @@ export default function ManualTab() {
         <div className="card">
           <h3 className="text-sm font-semibold mb-3">Tier Weights</h3>
 
+          <CalculationModeBar
+            pvValue={pvValue}
+            onPvChange={setPvValue}
+            closingMode={closingMode}
+            onClosingModeChange={setClosingMode}
+          />
+
           {/* Preset chips */}
           <div className="flex flex-wrap gap-1.5 mb-3">
             {Object.entries(WEIGHT_PRESETS).map(([key, preset]) => (
@@ -484,6 +526,9 @@ export default function ManualTab() {
               <p className="text-3xl font-bold text-[#00529B]">{formatINR(analysis.tiered.finalValue)}</p>
               <p className="text-xs text-slate-400 mt-1">
                 Based on {validSources.length} sources across {analysis.tiered.tierBreakdown.length} tier{analysis.tiered.tierBreakdown.length !== 1 ? 's' : ''}
+              </p>
+              <p className="text-xs text-slate-500 mt-2">
+                Applied: Closing {analysis.tiered.closingModeApplied} • PV {analysis.tiered.pvFactor} • Base {formatINR(analysis.tiered.baseValue)}
               </p>
 
               {/* Previous SSR comparison */}

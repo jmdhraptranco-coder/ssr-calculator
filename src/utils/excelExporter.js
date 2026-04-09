@@ -71,7 +71,7 @@ export function generateTemplate() {
   saveAs(new Blob([wbout], { type: 'application/octet-stream' }), 'SSR_Rate_Data_Template.xlsx');
 }
 
-export function exportResults(results, tierWeights, items) {
+export function exportResults(results, tierWeights, items, calculationSettings = {}) {
   const wb = XLSX.utils.book_new();
 
   // Sheet 1: SSR Summary
@@ -79,6 +79,9 @@ export function exportResults(results, tierWeights, items) {
     'Item Code': r.code,
     'Item Name': r.name,
     'Category': r.category || '',
+    'Base Value': Math.round(r.baseValue ?? r.finalValue),
+    'PV Factor': r.pvFactor ?? calculationSettings.pvFactor ?? 1,
+    'Closing Mode': r.closingModeApplied || calculationSettings.closingMode || 'sumP2overP',
     'Final SSR Value': Math.round(r.finalValue),
     'Selected Method': r.selectedMethod || 'Tiered Weighted Blend',
     'Previous SSR': r.previousSSR?.value || '',
@@ -98,6 +101,9 @@ export function exportResults(results, tierWeights, items) {
         row[key] = val != null ? Math.round(val) : '';
       }
     }
+    row['Base Value'] = Math.round(r.baseValue ?? r.finalValue);
+    row['PV Factor'] = r.pvFactor ?? calculationSettings.pvFactor ?? 1;
+    row['Closing Mode'] = r.closingModeApplied || calculationSettings.closingMode || 'sumP2overP';
     row['Tiered Weighted Value'] = Math.round(r.finalValue);
     row['CV%'] = r.cv?.toFixed(1) || '';
     row['Total Sources'] = r.totalSources || '';
@@ -125,6 +131,8 @@ export function exportResults(results, tierWeights, items) {
   const methodology = [
     { Note: 'SSR Rate Calculation Methodology' },
     { Note: `Date of Analysis: ${new Date().toLocaleDateString('en-IN')}` },
+    { Note: `Closing Mode: ${calculationSettings.closingMode || 'Item-wise (auto or selected)'}` },
+    { Note: `PV Factor: ${calculationSettings.pvFactor ?? 1}` },
     { Note: '' },
     { Note: 'Tier Weights Applied:' },
     ...Object.entries(tierWeights).map(([tier, w]) => ({ Note: `  ${tier}: ${w}%` })),
@@ -141,7 +149,7 @@ export function exportResults(results, tierWeights, items) {
   saveAs(new Blob([wbout], { type: 'application/octet-stream' }), 'SSR_Calculation_Results.xlsx');
 }
 
-export function exportManualEntryResults({ itemName, matchedItem, sources, validSources, tierWeights, analysis }) {
+export function exportManualEntryResults({ itemName, matchedItem, sources, validSources, tierWeights, analysis, calculationSettings = {} }) {
   if (!analysis) return;
 
   const wb = XLSX.utils.book_new();
@@ -171,6 +179,9 @@ export function exportManualEntryResults({ itemName, matchedItem, sources, valid
 
   // Final result
   rows.push(header('RECOMMENDED SSR RATE'));
+  rows.push(row('Base Closing Value', Math.round(calculationSettings.baseValue ?? analysis.tiered.baseValue ?? analysis.tiered.finalValue)));
+  rows.push(row('PV Factor', calculationSettings.pvFactor ?? analysis.tiered.pvFactor ?? 1));
+  rows.push(row('Closing Mode', calculationSettings.closingMode || analysis.tiered.closingModeApplied || 'sumP2overP'));
   rows.push(row('Tiered Weighted SSR (Final)', Math.round(analysis.tiered.finalValue)));
   if (matchedItem?.previousSSR?.value != null) {
     const prev = matchedItem.previousSSR.value;

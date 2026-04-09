@@ -35,7 +35,7 @@ function tierBadge(tier) {
   return `<span style="display:inline-block;padding:2px 8px;border-radius:9999px;font-size:10px;font-weight:600;color:#fff;background:${color}">${esc(tier)}</span>`;
 }
 
-export function exportManualEntryPdf({ itemName, matchedItem, sources, validSources, tierWeights, analysis }) {
+export function exportManualEntryPdf({ itemName, matchedItem, sources, validSources, tierWeights, analysis, calculationSettings = {} }) {
   if (!analysis) return;
 
   const title = itemName || matchedItem?.name || 'Manual Entry';
@@ -85,6 +85,10 @@ export function exportManualEntryPdf({ itemName, matchedItem, sources, validSour
   const formulaLine = analysis.tiered.tierBreakdown
     .map((tb) => `${(tb.weight * 100).toFixed(0)}% × ${fmtINR(tb.estimate)}`)
     .join(' + ');
+
+  const baseValue = calculationSettings.baseValue ?? analysis.tiered.baseValue ?? analysis.tiered.finalValue;
+  const pvFactor = calculationSettings.pvFactor ?? analysis.tiered.pvFactor ?? 1;
+  const closingMode = calculationSettings.closingMode || analysis.tiered.closingModeApplied || 'sumP2overP';
 
   const flagsHtml = analysis.tiered.diagnostics.flags.length
     ? `<ul class="flag-list">${analysis.tiered.diagnostics.flags.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>`
@@ -221,6 +225,9 @@ export function exportManualEntryPdf({ itemName, matchedItem, sources, validSour
         <div class="kv"><span class="k">Data Spread</span><span class="v">${analysis.cv <= 15 ? 'Low' : analysis.cv <= 40 ? 'Moderate' : analysis.cv <= 60 ? 'High' : 'Very High'}</span></div>
         <div class="kv"><span class="k">Previous SSR</span><span class="v">${matchedItem?.previousSSR ? fmtINR(matchedItem.previousSSR.value) : '—'}</span></div>
         <div class="kv"><span class="k">Previous Year</span><span class="v">${matchedItem?.previousSSR?.year || '—'}</span></div>
+        <div class="kv"><span class="k">Closing Mode</span><span class="v">${esc(closingMode)}</span></div>
+        <div class="kv"><span class="k">PV Factor</span><span class="v">${esc(pvFactor)}</span></div>
+        <div class="kv"><span class="k">Base Value</span><span class="v">${fmtINR(baseValue)}</span></div>
       </div>
     </div>
 
@@ -248,6 +255,7 @@ export function exportManualEntryPdf({ itemName, matchedItem, sources, validSour
     </table>
     <div class="formula-box">
       SSR = ${esc(formulaLine)}
+      <div class="small-text" style="margin-top:6px">Final SSR = Base Closing Value × PV Factor = ${fmtINR(baseValue)} × ${esc(pvFactor)}</div>
       <div class="formula-result">= ${fmtINR(analysis.tiered.finalValue)}</div>
     </div>
   </div>

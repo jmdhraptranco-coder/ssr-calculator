@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { generateTemplate } from '../../utils/excelExporter';
 import { parseUploadedFile } from '../../utils/excelParser';
 import { computeTieredSSR, DEFAULT_WEIGHTS, TIER_ORDER, WEIGHT_PRESETS, autoWeights, TIER_COLOR_HEX } from '../../engine/tieredCalculator';
@@ -7,6 +7,7 @@ import { formatINR, formatPercent, getMethodDisplayName, getMethodColor } from '
 import { exportResults } from '../../utils/excelExporter';
 import TierBadge from '../Shared/TierBadge';
 import { SSR_ITEMS } from '../../data/ssrItems';
+import CalculationModeBar from '../Shared/CalculationModeBar';
 
 export default function UploadTab() {
   const [parsedData, setParsedData] = useState(null);
@@ -20,6 +21,8 @@ export default function UploadTab() {
   const [errors, setErrors] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filterTier, setFilterTier] = useState(null);
+  const [pvValue, setPvValue] = useState('1');
+  const [closingMode, setClosingMode] = useState('auto');
 
   const handleFile = useCallback(async (file) => {
     setLoading(true);
@@ -64,10 +67,20 @@ export default function UploadTab() {
     setPreviewItems(null);
   }, [previewItems, parsedData, tierWeights]);
 
-  const calculateResults = useCallback((data, weights) => {
+  const calculateResults = useCallback((data, weights, settings = {}) => {
     if (!data?.items?.length) return;
+    const pvFactor = settings.pvFactor ?? pvValue;
+    const closing = settings.closingMode ?? closingMode;
     const itemResults = data.items.map((item) => {
-      const tierResult = computeTieredSSR(item.sources, weights);
+      const tierResult = computeTieredSSR(item.sources, weights, {
+        pvFactor,
+        closingMode: closing,
+        itemContext: {
+          code: item.code,
+          name: item.name,
+          category: item.category,
+        },
+      });
       const prevItem = SSR_ITEMS.find(
         (si) => si.code === item.code || si.name.toLowerCase().includes(item.name?.toLowerCase()?.slice(0, 20))
       );
@@ -86,7 +99,7 @@ export default function UploadTab() {
       };
     });
     setResults(itemResults);
-  }, []);
+  }, [pvValue, closingMode]);
 
   const handleOverride = useCallback((itemIndex, method, reason) => {
     setOverrides((prev) => ({
@@ -118,8 +131,8 @@ export default function UploadTab() {
     if (!preset) return;
     setTierWeights({ ...preset.weights });
     setActivePreset(key);
-    if (parsedData && results) calculateResults(parsedData, preset.weights);
-  }, [parsedData, results, calculateResults]);
+    if (parsedData && results) calculateResults(parsedData, preset.weights, { pvFactor: pvValue, closingMode });
+  }, [parsedData, results, calculateResults, pvValue, closingMode]);
 
   const applyAutoWeights = useCallback(() => {
     if (!parsedData?.items) return;
@@ -127,15 +140,21 @@ export default function UploadTab() {
     const w = autoWeights(allSources);
     setTierWeights(w);
     setActivePreset('auto');
-    if (results) calculateResults(parsedData, w);
-  }, [parsedData, results, calculateResults]);
+    if (results) calculateResults(parsedData, w, { pvFactor: pvValue, closingMode });
+  }, [parsedData, results, calculateResults, pvValue, closingMode]);
 
   const updateWeight = useCallback((tier, val) => {
     const newWeights = { ...tierWeights, [tier]: val };
     setTierWeights(newWeights);
     setActivePreset(null);
-    if (parsedData && results) calculateResults(parsedData, newWeights);
-  }, [tierWeights, parsedData, results, calculateResults]);
+    if (parsedData && results) calculateResults(parsedData, newWeights, { pvFactor: pvValue, closingMode });
+  }, [tierWeights, parsedData, results, calculateResults, pvValue, closingMode]);
+
+  useEffect(() => {
+    if (parsedData && results) {
+      calculateResults(parsedData, tierWeights, { pvFactor: pvValue, closingMode });
+    }
+  }, [parsedData, results, tierWeights, pvValue, closingMode, calculateResults]);
 
   const handleExport = () => {
     if (results && parsedData) {
@@ -150,7 +169,10 @@ export default function UploadTab() {
           finalValue: getEffectiveValue(r, i),
         };
       });
-      exportResults(exportData, tierWeights, parsedData.items);
+      exportResults(exportData, tierWeights, parsedData.items, {
+        closingMode,
+        pvFactor: Number(pvValue) || 1,
+      });
     }
   };
 
@@ -367,6 +389,13 @@ export default function UploadTab() {
               </button>
             </div>
 
+            <CalculationModeBar
+              pvValue={pvValue}
+              onPvChange={setPvValue}
+              closingMode={closingMode}
+              onClosingModeChange={setClosingMode}
+            />
+
             {/* Presets */}
             <div className="flex flex-wrap gap-2 mb-4">
               {Object.entries(WEIGHT_PRESETS).map(([key, preset]) => (
@@ -420,6 +449,9 @@ export default function UploadTab() {
                 Auto weights are based on data count, not reliability. Tiers with more data get higher weights, which may not reflect source quality. Consider a preset for governance-defensible weights.
               </p>
             )}
+            <p className="text-xs text-gray-500 mt-2">
+              Applied: Closing {closingMode} • PV {Number(pvValue) || 1}
+            </p>
           </div>
 
           {/* Filter by tier */}
