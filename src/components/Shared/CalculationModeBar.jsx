@@ -12,44 +12,52 @@ export default function CalculationModeBar({
 }) {
   return (
     <div className="calc-mode-bar mb-4">
-      <div className="calc-mode-row">
-        <label className="calc-mode-label" htmlFor="price-variation-input">
-          Price Variation (PV)
-        </label>
-        <input
-          id="price-variation-input"
-          type="number"
-          min="0"
-          step="0.01"
-          value={pvValue}
-          onChange={(e) => onPvChange(e.target.value)}
-          className="calc-mode-pv-input"
-        />
+      <div className="calc-mode-header">
+        <span className="calc-mode-title">Price Variation and Closing Strategy</span>
         <button
           type="button"
           className="calc-mode-help"
-          title="PV and Closing mode are UI configuration controls for calculation strategy."
+          title="PV scales the final value. Closing selects the base formula used before PV."
           aria-label="PV and Closing help"
         >
           ?
         </button>
-
-        <label className="calc-mode-label" htmlFor="closing-mode-select">
-          Closing
-        </label>
-        <select
-          id="closing-mode-select"
-          value={closingMode}
-          onChange={(e) => onClosingModeChange(e.target.value)}
-          className="calc-mode-select"
-        >
-          {CLOSING_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
       </div>
+      <div className="calc-mode-row">
+        <div className="calc-mode-group">
+          <label className="calc-mode-label" htmlFor="price-variation-input">
+            Price Variation (PV)
+          </label>
+          <input
+            id="price-variation-input"
+            type="number"
+            min="0"
+            step="0.01"
+            value={pvValue}
+            onChange={(e) => onPvChange(e.target.value)}
+            className="calc-mode-pv-input"
+          />
+        </div>
+
+        <div className="calc-mode-group">
+          <label className="calc-mode-label" htmlFor="closing-mode-select">
+            Closing Formula
+          </label>
+          <select
+            id="closing-mode-select"
+            value={closingMode}
+            onChange={(e) => onClosingModeChange(e.target.value)}
+            className="calc-mode-select"
+          >
+            {CLOSING_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <p className="calc-mode-note">Final SSR = Base Closing Value × PV Factor</p>
     </div>
   );
 }

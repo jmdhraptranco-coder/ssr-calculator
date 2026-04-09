@@ -334,6 +334,27 @@ export default function UploadTab() {
         </div>
       )}
 
+      {/* Calculation controls: visible right after upload/parse */}
+      {parsedData && (
+        <div className="card fade-in">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-semibold text-gray-900">Calculation Controls</h3>
+            <span className="text-xs text-gray-400">
+              {results ? 'Applied to current results' : 'Will apply when you calculate'}
+            </span>
+          </div>
+          <CalculationModeBar
+            pvValue={pvValue}
+            onPvChange={setPvValue}
+            closingMode={closingMode}
+            onClosingModeChange={setClosingMode}
+          />
+          <p className="text-xs text-gray-500">
+            Applied: Closing {closingMode === 'auto' ? 'auto (item-wise)' : closingMode} • PV {Number(pvValue) || 1}
+          </p>
+        </div>
+      )}
+
       {/* Results section - shown after calculate */}
       {results && results.length > 0 && (
         <>
@@ -389,13 +410,6 @@ export default function UploadTab() {
               </button>
             </div>
 
-            <CalculationModeBar
-              pvValue={pvValue}
-              onPvChange={setPvValue}
-              closingMode={closingMode}
-              onClosingModeChange={setClosingMode}
-            />
-
             {/* Presets */}
             <div className="flex flex-wrap gap-2 mb-4">
               {Object.entries(WEIGHT_PRESETS).map(([key, preset]) => (
@@ -449,9 +463,6 @@ export default function UploadTab() {
                 Auto weights are based on data count, not reliability. Tiers with more data get higher weights, which may not reflect source quality. Consider a preset for governance-defensible weights.
               </p>
             )}
-            <p className="text-xs text-gray-500 mt-2">
-              Applied: Closing {closingMode} • PV {Number(pvValue) || 1}
-            </p>
           </div>
 
           {/* Filter by tier */}
