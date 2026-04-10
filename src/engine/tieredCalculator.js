@@ -227,7 +227,7 @@ export function computeTieredSSR(sources, tierWeights, options = {}) {
   }
 
   const baseValue = computeClosingValue(allValues, closingModeApplied);
-  const finalValueWithPv = baseValue * pvFactor;
+  const finalValueWithPv = finalValue * pvFactor;
 
   return {
     finalValue: finalValueWithPv,

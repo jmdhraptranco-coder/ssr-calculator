@@ -179,10 +179,11 @@ export function exportManualEntryResults({ itemName, matchedItem, sources, valid
 
   // Final result
   rows.push(header('RECOMMENDED SSR RATE'));
-  rows.push(row('Base Closing Value', Math.round(calculationSettings.baseValue ?? analysis.tiered.baseValue ?? analysis.tiered.finalValue)));
+  rows.push(row('Tiered Weighted Blend (pre-PV)', Math.round(analysis.tiered.tieredValue)));
   rows.push(row('PV Factor', calculationSettings.pvFactor ?? analysis.tiered.pvFactor ?? 1));
-  rows.push(row('Closing Mode', calculationSettings.closingMode || analysis.tiered.closingModeApplied || 'sumP2overP'));
   rows.push(row('Tiered Weighted SSR (Final)', Math.round(analysis.tiered.finalValue)));
+  rows.push(row('Base Closing Value (cross-check)', Math.round(calculationSettings.baseValue ?? analysis.tiered.baseValue ?? analysis.tiered.finalValue)));
+  rows.push(row('Closing Mode', calculationSettings.closingMode || analysis.tiered.closingModeApplied || 'sumP2overP'));
   if (matchedItem?.previousSSR?.value != null) {
     const prev = matchedItem.previousSSR.value;
     const pct = ((analysis.tiered.finalValue - prev) / prev) * 100;

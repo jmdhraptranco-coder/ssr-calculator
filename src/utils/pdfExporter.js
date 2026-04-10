@@ -255,7 +255,7 @@ export function exportManualEntryPdf({ itemName, matchedItem, sources, validSour
     </table>
     <div class="formula-box">
       SSR = ${esc(formulaLine)}
-      <div class="small-text" style="margin-top:6px">Final SSR = Base Closing Value × PV Factor = ${fmtINR(baseValue)} × ${esc(pvFactor)}</div>
+      <div class="small-text" style="margin-top:6px">Final SSR = Tiered Weighted Blend × PV Factor = ${fmtINR(analysis.tiered.tieredValue)} × ${esc(pvFactor)}</div>
       <div class="formula-result">= ${fmtINR(analysis.tiered.finalValue)}</div>
     </div>
   </div>
