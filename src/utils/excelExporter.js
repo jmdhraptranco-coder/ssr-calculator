@@ -79,7 +79,7 @@ export function exportResults(results, tierWeights, items, calculationSettings =
     'Item Code': r.code,
     'Item Name': r.name,
     'Category': r.category || '',
-    'Base Value': Math.round(r.baseValue ?? r.finalValue),
+    'Tiered Blend (pre-PV)': Math.round(r.tieredValue ?? r.finalValue),
     'PV Factor': r.pvFactor ?? calculationSettings.pvFactor ?? 1,
     'Closing Mode': r.closingModeApplied || calculationSettings.closingMode || 'sumP2overP',
     'Final SSR Value': Math.round(r.finalValue),
@@ -101,7 +101,7 @@ export function exportResults(results, tierWeights, items, calculationSettings =
         row[key] = val != null ? Math.round(val) : '';
       }
     }
-    row['Base Value'] = Math.round(r.baseValue ?? r.finalValue);
+    row['Tiered Blend (pre-PV)'] = Math.round(r.tieredValue ?? r.finalValue);
     row['PV Factor'] = r.pvFactor ?? calculationSettings.pvFactor ?? 1;
     row['Closing Mode'] = r.closingModeApplied || calculationSettings.closingMode || 'sumP2overP';
     row['Tiered Weighted Value'] = Math.round(r.finalValue);

@@ -111,7 +111,9 @@ export default function UploadTab() {
   const getEffectiveValue = useCallback((result, itemIndex) => {
     const override = overrides[itemIndex];
     if (!override?.method || override.method === 'tieredWeightedBlend') return result.finalValue;
-    return result.allMethods?.[override.method] ?? result.finalValue;
+    const rawMethodValue = result.allMethods?.[override.method] ?? result.finalValue;
+    const pv = result.pvFactor ?? 1;
+    return rawMethodValue * pv;
   }, [overrides]);
 
   const handleDrop = useCallback((e) => {
